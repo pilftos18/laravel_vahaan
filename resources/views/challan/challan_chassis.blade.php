@@ -1,0 +1,212 @@
+@extends('layout')
+
+@section('content')
+<style>       
+              button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+    table {
+        border-collapse: collapse;
+        width: 100%;
+    }
+    
+    th, td {
+        padding: 8px;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+    }
+    
+    th {
+        background-color: #f2f2f2;
+    }
+    .challan_details{
+        display:none;
+    }
+    .re_details_error{
+        display:none;
+    }
+
+    .loader {
+      border: 16px solid #f3f3f3; /* Light grey */
+      border-top: 16px solid #3498db; /* Blue */
+      border-radius: 50%;
+      width: 120px;
+      height: 120px;
+      animation: spin 2s linear infinite;
+      margin: 50px auto;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+</style>
+<!-- Main container -->
+<div id="main" class="main">
+    <div class="row">
+        <div class="pagetitle">
+            <h1>Challan Details</h1>
+        </div>
+    </div>
+
+    <div id="validate" style="color:red;"></div>
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title">Vehicle Number</h5>
+            <div class="row g-3">
+                <div class="col-auto">
+                    <input type="text" id="challanNo" placeholder="Enter Vehicle Number" class="form-control">
+                </div>
+                <div class="col-auto">
+                    <input type="text" id="chassisNo" placeholder="Enter Chassis Number" class="form-control">
+                </div>
+                <div class="col-auto">
+                    <button id="submitBtn" class="btn btn-primary">Submit</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- //Filters -->
+      <!-- //Filters -->
+    <!-- <div class="loader" style="display: none;"></div> -->
+    <div id="loader" class="loader-wrapper">
+        <div class="loader-container">
+            <div class="loader-box">
+                <div class="ring"></div>
+                <div class="ring"></div>
+                <div class="ring"></div>
+                <div class="ring"></div>
+                <div class="loading-logo">
+                    <img src="{{asset('assets/img/edas-logo-light.png')}}" alt="Edas Logo">
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="challan_details">
+        <div class="card">
+            <div class="card-body">
+                <h2 class="card-title">Challan Number</h2>
+                <div id="challanDetails"></div>
+            </div>
+        </div>
+    </div>
+    <div class="re_details_error">
+        <div id="error"></div>
+    </div>
+</div>
+
+<!-- //Main container -->
+<script>
+    $(document).ready(function() {
+        
+        $('#submitBtn').click(function() {
+            var vehicle_No = $('#challanNo').val();
+            var chassis_No = $('#chassisNo').val();
+            var isValidChallanNumber = validateVehicleNumber(vehicle_No);
+            var isValidChassisNo = validateChassisLastFiveDigit(chassis_No);
+            //console.log(isValidChallanNumber);
+            if(isValidChallanNumber !== false)
+            {
+                if(isValidChassisNo !== false)
+                {
+                    var loader = document.getElementById('loader');
+                    $(".challan_details").css('display','none');
+                    loader.style.display = 'block';
+                    var csrfToken = $('meta[name="csrf-token"]').attr('content');
+                        $.ajaxSetup({
+                        headers: {
+                            'X-CSRF-TOKEN': csrfToken
+                        }
+                        });
+                                    
+                    // Make the Ajax request
+                    $.ajax({
+                        url: "{{ route('challan.challanWithChassisPostData') }}",// Path to controller through routes/web.php
+                        type: 'POST',
+                        data: {type:'challan_chassis', vehicle_No: vehicle_No, chassis_No: chassis_No},
+                        dataType: 'json',
+                        success: function(response) {
+                            // Hide loader
+                            loader.style.display = 'none';
+                            //console.log(response);
+                        //console.log(response);
+                            if(response.error)
+                            {
+                                $("#validate").css('display','block');
+                                $('#validate').html('Connection failed. Please try again later.');
+                            }
+                            else if (response.Error) {
+                                    $('#error').html('<p>'+response.Error+' </p>');
+                                    $('.re_details_error').css('display', 'block');
+                                }
+                            else{
+                                // Handle the response data
+                                $(".challan_details").css('display', 'block');
+                            
+                                    displayVehicleDetails(response);
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            loader.style.display = 'none';
+                            $('#error').html('An error occurred: ' + error);
+                            $('.re_details_error').css('display', 'block');
+                        }
+                    });
+                }
+                else{
+                    $('#validate').html('<p> Please enter valid Chassis Number </p>');
+                }
+            }
+            else{
+                $('#validate').html('<p> Please enter valid Vehicle Number </p>');
+            }
+        });
+
+
+
+
+        function displayVehicleDetails(vehicleDetails) 
+        {
+            var vehicleDetailsHtml = '<div>';
+            $.each(vehicleDetails, function(i, data) {
+                vehicleDetailsHtml += '<div><table>';
+                vehicleDetailsHtml += '<tr><th colspan="2"></th></tr>';
+                console.log(" - "+data);
+                $.each(data, function(index, detail) {
+                    var fieldName = index;
+                    var fieldValue = detail;
+				
+					if(index.trim() == 'Offences')
+					{
+						//console.log("inside");
+						vehicleDetailsHtml += '<tr><th style="background-color:#FFF"> Offence Details </th><td><table>';
+						$.each(detail, function(ind, det) {	
+							$.each(det, function(i, d) {
+							//console.log(ind+" --"+i+"-- "+d);								
+								vehicleDetailsHtml += '<tr><td width="30%">' + i + '</td><td>' + d + '</td></tr>';
+							});
+						});
+						vehicleDetailsHtml += '</table></td></tr>';
+					}
+					else{
+						vehicleDetailsHtml += '<tr><td width="20%">' + fieldName + '</td><td>' + fieldValue + '</td></tr>';
+					}
+                });
+                vehicleDetailsHtml += '</table></div>';
+            });
+            vehicleDetailsHtml += '</div>';
+            //console.log(vehicleDetailsHtml);
+            $('#challanDetails').html(vehicleDetailsHtml);
+        }
+
+    });
+</script>
+
+@endsection
